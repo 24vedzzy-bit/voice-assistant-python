@@ -1,0 +1,177 @@
+# ---------------------------------------------------------
+# Project Title: Voice Assistant System using Python
+# Author: Vedika Akotkar
+
+# ---------------------------------------------------------
+
+import speech_recognition as sr
+import pyttsx3
+import smtplib
+from email.mime.text import MIMEText
+from datetime import datetime
+import string
+
+# ---------------------------------------------------------
+# 1. Speak Function - Converts text to speech
+# ---------------------------------------------------------
+def speak(text):
+    engine = pyttsx3.init()
+    engine.say(text)
+    engine.runAndWait()
+
+# ---------------------------------------------------------
+# 2. Listen Function - Captures voice input and converts to text
+# ---------------------------------------------------------
+def listen():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("\nListening...")
+        recognizer.adjust_for_ambient_noise(source, duration=0.5)
+        audio = recognizer.listen(source)
+    try:
+        command = recognizer.recognize_google(audio)
+        command = command.lower().strip()
+        print(f"You said: {command}")
+        return command
+    except sr.UnknownValueError:
+        speak("Sorry, I did not catch that.")
+        return ""
+    except sr.RequestError:
+        speak("Network error.")
+        return ""
+
+# ---------------------------------------------------------
+# 3. Normalize Text - removes punctuation and extra spaces
+# ---------------------------------------------------------
+def normalize(text):
+    return text.lower().translate(str.maketrans('', '', string.punctuation)).strip()
+
+# ---------------------------------------------------------
+# 4. Get Valid Input - retries until a valid option is heard
+# ---------------------------------------------------------
+def get_valid_input(prompt, valid_options):
+    while True:
+        speak(prompt)
+        print(prompt)
+        response = listen()
+        response = normalize(response)
+        # Check if any valid option is contained in the response
+        for option in valid_options:
+            if option in response:
+                return option
+        speak("I didn't understand. Please say again.")
+
+# ---------------------------------------------------------
+# 5. Send Mail Function
+# ---------------------------------------------------------
+def send_mail(receiver_email, message):
+    sender_email = "24Vedzzy@gmail.com"   # replace with your Gmail ID
+    password = "mmksdfercyhjclpf"         # generate from Google App Passwords
+
+    msg = MIMEText(message)
+    msg["Subject"] = "Voice Assistant Mail"
+    msg["From"] = sender_email
+    msg["To"] = receiver_email
+
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(sender_email, password)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print("Error:", e)
+        return False
+
+# ---------------------------------------------------------
+# 6. Log Function - Saves conversation to a file
+# ---------------------------------------------------------
+def log_conversation(speaker, text):
+    with open("conversation_log.txt", "a") as file:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        file.write(f"[{timestamp}] {speaker}: {text}\n")
+
+# ---------------------------------------------------------
+# 7. Main Function - Conversation Flow
+# ---------------------------------------------------------
+def main():
+    speak("Hi")
+    print("System: Hi")
+    log_conversation("System", "Hi")
+
+    user_input = listen()
+    log_conversation("User", user_input)
+
+    if "hello" in user_input or "hi" in user_input:
+        speak("What is your name?")
+        print("System: What is your name?")
+        log_conversation("System", "What is your name?")
+
+        name = listen()
+        log_conversation("User", name)
+
+        speak(f"How can I help you, {name}?")
+        print(f"System: How can I help you, {name}?")
+        log_conversation("System", f"How can I help you, {name}?")
+
+        command = listen()
+        log_conversation("User", command)
+
+        if "send message" in command or "send mail" in command:
+            medium = get_valid_input("On what — mail or WhatsApp?", ["mail", "whatsapp"])
+            log_conversation("User", medium)
+
+            if "mail" in medium:
+                # Get receiver email - voice or typing
+                speak("Please tell me the receiver's email address. You can also say 'enter' to enter manually.")
+                print("System: Please tell me the receiver's email address. Say 'enter' to enter manually.")
+                receiver_email_input = listen()
+                log_conversation("User", receiver_email_input)
+
+                if "enter" in normalize(receiver_email_input):
+                    receiver_email = input("Enter receiver's email address: ")
+                else:
+                    receiver_email = receiver_email_input
+
+                # Get message content via voice
+                speak("What message would you like to send?")
+                message = listen()
+                log_conversation("User", message)
+
+                print("\n=====Mail Content=====\n", message)
+                log_conversation("System", f"Mail Content: {message}")
+
+                # Confirmation with robust yes/no handling
+                confirm = get_valid_input(
+                    "Is it okay to send?",
+                    ["yes", "yeah", "yup", "sure", "ok", "okay", "it is ok", "it is okay", "no", "nope"]
+                )
+                log_conversation("User", confirm)
+
+                if confirm in ["yes", "yeah", "yup", "sure", "ok", "okay", "it is ok", "it is okay"]:
+                    if send_mail(receiver_email, message):
+                        speak("Mail sent successfully.")
+                        print("System: Mail sent successfully!")
+                        log_conversation("System", "Mail sent successfully!")
+                    else:
+                        speak("Sorry, mail sending failed.")
+                        print("System: Mail sending failed.")
+                        log_conversation("System", "Mail sending failed.")
+                else:
+                    speak("Mail canceled.")
+                    log_conversation("System", "Mail canceled.")
+            else:
+                speak("WhatsApp feature coming soon!")
+                log_conversation("System", "WhatsApp feature coming soon.")
+        else:
+            speak("Sorry, I can only help with sending mails or WhatsApp messages.")
+            log_conversation("System", "Command not recognized.")
+    else:
+        speak("Please start by saying hello.")
+        log_conversation("System", "Please start by saying hello.")
+
+# ---------------------------------------------------------
+# 8. Run the Program
+# ---------------------------------------------------------
+if _name_ == "_main_":
+    main()
